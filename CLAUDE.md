@@ -30,6 +30,19 @@ Apps in this monorepo:
 - `task-platform` — main API
 - `reminder-worker` — background processor
 
+## Error Handling
+
+- Always use NestJS built-in HTTP exceptions (NotFoundException, BadRequestException, etc.)
+- Never throw raw Error objects from controllers or services
+- All errors must include a machine-readable code and human-readable message
+- Global exception filter handles formatting — do not format errors in controllers
+
+## Environment Config
+
+- Never hardcode secrets, URLs, or environment-specific values
+- Always access config via ConfigService — never process.env directly
+- App must fail fast on startup if required env vars are missing (Joi validation)
+
 ## Post-MVP (Out of Scope)
 
 The following are explicitly out of MVP scope. Do not implement unless instructed:
