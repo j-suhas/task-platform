@@ -17,6 +17,42 @@ Controller → Service → Repository. Never mix responsibilities across layers:
 - **Service**: business logic and orchestration. No HTTP concerns, no raw queries.
 - **Repository**: data access only (Prisma calls). No business logic.
 
+## Module Structure
+
+Every NestJS module must follow this folder layout:
+
+```
+controllers/ → services/ → repositories/ → dto/ → entities/
+```
+
+Apps in this monorepo:
+
+- `task-platform` — main API
+- `reminder-worker` — background processor
+
+## Error Handling
+
+- Always use NestJS built-in HTTP exceptions (NotFoundException, BadRequestException, etc.)
+- Never throw raw Error objects from controllers or services
+- All errors must include a machine-readable code and human-readable message
+- Global exception filter handles formatting — do not format errors in controllers
+
+## Environment Config
+
+- Never hardcode secrets, URLs, or environment-specific values
+- Always access config via ConfigService — never process.env directly
+- App must fail fast on startup if required env vars are missing (Joi validation)
+
+## Post-MVP (Out of Scope)
+
+The following are explicitly out of MVP scope. Do not implement unless instructed:
+
+- Attachments / file storage
+- Contact / entity linking
+- Sprint planning
+- Finance, habits, learning modules
+- Voice capture / URL share quick capture
+
 ## Testing
 
 - Always write unit tests for reminder state-machine logic.
