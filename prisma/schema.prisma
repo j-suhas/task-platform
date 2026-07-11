@@ -1,0 +1,241 @@
+// schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── USERS ───────────────────────────────────────────────
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  name              String
+  passwordHash      String
+  digestTime        String    @default("07:00") // HH:mm, user configurable
+  timezone          String    @default("Asia/Kolkata")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspaceMemberships WorkspaceMember[]
+  assignedTasks        Task[]            @relation("assignee")
+  createdTasks         Task[]            @relation("creator")
+  refreshTokens        RefreshToken[]
+  fcmTokens            FcmToken[]
+  notifications        Notification[]
+}
+
+// ─── REFRESH TOKENS ──────────────────────────────────────
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── FCM TOKENS ──────────────────────────────────────────
+model FcmToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  deviceId  String   // client-generated unique device identifier
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId]) // one token per device per user
+}
+
+// ─── WORKSPACES ──────────────────────────────────────────
+model Workspace {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members  WorkspaceMember[]
+  projects Project[]
+}
+
+model WorkspaceMember {
+  id          String          @id @default(uuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole   @default(MEMBER)
+  joinedAt    DateTime        @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+enum WorkspaceRole {
+  OWNER
+  MEMBER
+}
+
+// ─── PROJECTS ────────────────────────────────────────────
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  workspaceId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+  sprints   Sprint[]
+}
+
+// ─── SPRINTS (schema ready, UI post-MVP) ─────────────────
+model Sprint {
+  id        String      @id @default(uuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  projectId String
+  status    SprintStatus @default(PLANNED)
+  createdAt DateTime    @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+}
+
+enum SprintStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+}
+
+// ─── TASKS ───────────────────────────────────────────────
+model Task {
+  id          String      @id @default(uuid())
+  title       String
+  description String?
+  status      TaskStatus  @default(TODO)
+  priority    Priority    @default(MEDIUM)
+  dueDate     DateTime?
+  tags        String[]    // PostgreSQL array
+  linkedUrls  Json?       // [{ title: string, url: string }]
+  projectId   String
+  sprintId    String?     // nullable — null = backlog
+  assigneeId  String?
+  creatorId   String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sprint    Sprint?   @relation(fields: [sprintId], references: [id])
+  assignee  User?     @relation("assignee", fields: [assigneeId], references: [id])
+  creator   User      @relation("creator", fields: [creatorId], references: [id])
+  reminders Reminder[]
+  notifications Notification[]
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  SNOOZED
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ─── REMINDERS ───────────────────────────────────────────
+model Reminder {
+  id            String         @id @default(uuid())
+  taskId        String
+  scheduledAt   DateTime       // when to fire
+  status        ReminderStatus @default(PENDING)
+  bullJobId     String?        // BullMQ job ID for cancellation
+  refireCount   Int            @default(0)
+  maxRefires    Int            @default(3)
+  refireInterval Int           @default(15) // minutes
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+enum ReminderStatus {
+  PENDING      // scheduled, not yet fired
+  FIRED        // FCM sent, awaiting acknowledgement
+  ACKNOWLEDGED // user acted on it
+  SNOOZED      // user deferred it
+  CANCELLED    // task done or manually cancelled
+  EXPIRED      // max refires reached, moved to missed queue
+}
+
+// ─── NOTIFICATIONS ───────────────────────────────────────
+model Notification {
+  id        String             @id @default(uuid())
+  userId    String
+  taskId    String?
+  type      NotificationType
+  title     String
+  body      String
+  status    NotificationStatus @default(UNREAD)
+  createdAt DateTime           @default(now())
+  readAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+}
+
+enum NotificationType {
+  REMINDER
+  REFIRE
+  DIGEST
+  ASSIGNMENT
+  SYSTEM
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  DISMISSED
+}
+
+// ─── OFFLINE SYNC ────────────────────────────────────────
+model SyncOperation {
+  id          String        @id @default(uuid())
+  userId      String
+  deviceId    String
+  operation   SyncOpType
+  entityType  String        // 'task' | 'project'
+  entityId    String
+  payload     Json
+  clientTs    DateTime      // when client made the change
+  status      SyncOpStatus  @default(PENDING)
+  createdAt   DateTime      @default(now())
+  resolvedAt  DateTime?
+
+  @@index([userId, status])
+}
+
+enum SyncOpType {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum SyncOpStatus {
+  PENDING
+  APPLIED
+  REJECTED  // server-wins conflict
+}

@@ -43,6 +43,18 @@ Apps in this monorepo:
 - Always access config via ConfigService — never process.env directly
 - App must fail fast on startup if required env vars are missing (Joi validation)
 
+## Dependencies
+
+- Password hashing: bcryptjs (never bcrypt)
+- Prisma: pin to v6.x (v7 generator pattern not yet mature for NestJS)
+
+## Session Logs
+
+After every session, save the proposed plan to `.claude/plans/<phase-name>.md` before marking the task complete. File should contain:
+
+- Plan as proposed (sections, file list, decisions made)
+- Any amendments applied
+
 ## Post-MVP (Out of Scope)
 
 The following are explicitly out of MVP scope. Do not implement unless instructed:

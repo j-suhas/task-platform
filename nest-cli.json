@@ -10,6 +10,15 @@
   "monorepo": true,
   "root": "apps/task-platform",
   "projects": {
+    "common": {
+      "type": "library",
+      "root": "libs/common",
+      "entryFile": "index",
+      "sourceRoot": "libs/common/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/common/tsconfig.lib.json"
+      }
+    },
     "reminder-worker": {
       "type": "application",
       "root": "apps/reminder-worker",

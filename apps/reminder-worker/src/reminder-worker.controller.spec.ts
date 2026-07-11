@@ -11,7 +11,9 @@ describe('ReminderWorkerController', () => {
       providers: [ReminderWorkerService],
     }).compile();
 
-    reminderWorkerController = app.get<ReminderWorkerController>(ReminderWorkerController);
+    reminderWorkerController = app.get<ReminderWorkerController>(
+      ReminderWorkerController,
+    );
   });
 
   describe('root', () => {
