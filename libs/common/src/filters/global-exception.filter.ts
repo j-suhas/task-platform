@@ -6,9 +6,11 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { randomUUID } from 'crypto';
 import { Logger } from 'nestjs-pino';
 import { RequestWithCorrelation } from '../interceptors/request-with-correlation.interface';
+import { getCorrelationId } from '../interceptors/correlation-id.util';
+
+const SERVER_ERROR_THRESHOLD = 500;
 
 function toErrorCode(exception: HttpException): string {
   const name = exception.constructor.name.replace(/Exception$/, '') || 'Http';
@@ -23,7 +25,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<RequestWithCorrelation>();
-    const correlationId = request.correlationId ?? randomUUID();
+    const correlationId = getCorrelationId(request);
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
@@ -33,6 +35,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           ? exceptionResponse
           : ((exceptionResponse as Record<string, unknown>).message ??
             exception.message);
+
+      if (status >= SERVER_ERROR_THRESHOLD) {
+        this.logger.error(
+          { correlationId, err: exception, statusCode: status },
+          'HTTP exception',
+        );
+      }
 
       response.status(status).json({
         success: false,

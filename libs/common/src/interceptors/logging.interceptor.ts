@@ -6,8 +6,9 @@ import {
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { Logger } from 'nestjs-pino';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { RequestWithCorrelation } from './request-with-correlation.interface';
+import { getCorrelationId } from './correlation-id.util';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -18,10 +19,7 @@ export class LoggingInterceptor implements NestInterceptor {
     const request = httpContext.getRequest<RequestWithCorrelation>();
     const response = httpContext.getResponse<Response>();
 
-    const correlationId =
-      (request as unknown as { id?: string }).id ??
-      request.headers['x-correlation-id']?.toString();
-    request.correlationId = correlationId;
+    request.correlationId = getCorrelationId(request);
 
     const startTime = Date.now();
 
