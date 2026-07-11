@@ -83,3 +83,9 @@ The following are explicitly out of MVP scope. Do not implement unless instructe
   - `docs: document env variables`
   - `test: cover reminder state transitions`
   - `refactor: extract reminder repository from service`
+
+## Security Patterns
+
+- Passwords → bcryptjs (slow hash, random salt, compare only)
+- Tokens/API keys → SHA-256 (fast, deterministic, DB lookup safe)
+- Never use bcrypt for token storage — lookup is impossible

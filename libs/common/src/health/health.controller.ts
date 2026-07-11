@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { REDIS_CLIENT } from './redis-client.token';
+import { Public } from '../decorators';
 
 @Controller()
 export class HealthController {
@@ -11,11 +12,13 @@ export class HealthController {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
+  @Public()
   @Get('health')
   liveness() {
     return { status: 'ok' };
   }
 
+  @Public()
   @Get('ready')
   async readiness(@Res({ passthrough: true }) res: Response) {
     const result = { status: 'ok', db: 'ok', redis: 'ok' };
