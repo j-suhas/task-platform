@@ -5,7 +5,7 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { Logger } from 'nestjs-pino';
 import { RequestWithCorrelation } from '../interceptors/request-with-correlation.interface';
 import { getCorrelationId } from '../interceptors/correlation-id.util';

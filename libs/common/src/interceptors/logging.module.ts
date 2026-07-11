@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'crypto';
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { AppConfigModule } from '../config/config.module';
 import { AppConfigService } from '../config/app-config.service';
 

@@ -25,6 +25,7 @@ model User {
   createdTasks         Task[]            @relation("creator")
   refreshTokens        RefreshToken[]
   fcmTokens            FcmToken[]
+  notifications        Notification[]
 }
 
 // ─── REFRESH TOKENS ──────────────────────────────────────
@@ -192,6 +193,7 @@ model Notification {
   createdAt DateTime           @default(now())
   readAt    DateTime?
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   task Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
 }
 
