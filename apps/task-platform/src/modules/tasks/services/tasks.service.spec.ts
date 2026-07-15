@@ -257,5 +257,29 @@ describe('TasksService', () => {
       ).rejects.toThrow(NotFoundException);
       expect(tasksRepository.updateAssignee).not.toHaveBeenCalled();
     });
+
+    it('unassigns a task when assigneeId is null, without checking user existence', async () => {
+      tasksRepository.findById.mockResolvedValue(
+        makeTask({ assigneeId: 'assignee-1' }),
+      );
+      projectsRepository.findById.mockResolvedValue(project);
+      workspacesRepository.findMember.mockResolvedValue(member);
+      tasksRepository.updateAssignee.mockResolvedValue(
+        makeTask({ assigneeId: null }),
+      );
+
+      const result = await service.assign(
+        'task-1',
+        { assigneeId: null },
+        'user-1',
+      );
+
+      expect(result.assigneeId).toBeNull();
+      expect(usersRepository.findById).not.toHaveBeenCalled();
+      expect(tasksRepository.updateAssignee).toHaveBeenCalledWith(
+        'task-1',
+        null,
+      );
+    });
   });
 });

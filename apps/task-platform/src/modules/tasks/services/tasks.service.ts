@@ -160,9 +160,11 @@ export class TasksService {
   async assign(id: string, dto: AssignTaskDto, userId: string): Promise<Task> {
     await this.assertTaskMembership(id, userId);
 
-    const assignee = await this.usersRepository.findById(dto.assigneeId);
-    if (!assignee) {
-      throw new NotFoundException('Assignee not found');
+    if (dto.assigneeId !== null) {
+      const assignee = await this.usersRepository.findById(dto.assigneeId);
+      if (!assignee) {
+        throw new NotFoundException('Assignee not found');
+      }
     }
 
     return this.tasksRepository.updateAssignee(id, dto.assigneeId);

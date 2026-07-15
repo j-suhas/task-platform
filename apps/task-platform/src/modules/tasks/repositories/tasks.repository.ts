@@ -58,7 +58,7 @@ export class TasksRepository {
     return this.prisma.task.update({ where: { id }, data: { status } });
   }
 
-  updateAssignee(id: string, assigneeId: string): Promise<Task> {
+  updateAssignee(id: string, assigneeId: string | null): Promise<Task> {
     return this.prisma.task.update({ where: { id }, data: { assigneeId } });
   }
 }

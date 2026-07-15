@@ -106,3 +106,18 @@ Imports `UsersModule, WorkspacesModule, ProjectsModule, TasksModule` alongside t
 16. `GET /users/me` → sanitized profile; `PATCH /users/me {timezone:...}` → updated profile, no `passwordHash` in either response.
 
 All test users/workspaces created during verification were deleted from the DB afterward (`Workspace` delete cascades to `Project`/`Task`; deleted the workspace before the users since `Task.creatorId`/`assigneeId` don't cascade). `docker compose down` afterward.
+
+## Round 2 — code review fixes
+
+A code review of the initial implementation raised two points, both addressed:
+
+1. **Unvalidated query params reaching Prisma** — `ProjectTasksController.findAll` took `status`/`assigneeId`/`tag`/`search` as individual `@Query()` primitives typed as `TaskStatus`/`string`, but query params always arrive as raw strings with no coercion, so an invalid `status` value would flow straight through to `where.status` in `TasksRepository.findAll` and only fail once Prisma rejected it. Added `dto/list-tasks-query.dto.ts` (`ListTasksQueryDto`, `@IsEnum(TaskStatus)`/`@IsUUID()`/`@IsString()`, all `@IsOptional()`) and changed the controller to `@Query() query: ListTasksQueryDto`, so `ValidationPipe` (`whitelist: true, forbidNonWhitelisted: true`, already global in `main.ts`) rejects bad values with a `400` at the controller boundary instead of letting them reach the data layer.
+2. **No way to unassign a task** — `AssignTaskDto.assigneeId` and `TasksRepository.updateAssignee` only accepted a non-null UUID, so `PATCH /tasks/:id/assign` could set an assignee but never clear one. Changed `AssignTaskDto.assigneeId` to `string | null` with `@ValidateIf((_, value) => value !== null) @IsUUID()` (requires the field, allows explicit `null`, still validates non-null values as UUIDs), `TasksRepository.updateAssignee`'s signature to `string | null`, and `TasksService.assign` to skip the assignee-exists check when `assigneeId` is `null`. Added a corresponding unit test (`unassigns a task when assigneeId is null, without checking user existence`).
+
+### Round 2 re-verification
+
+1. `npm run build` → clean.
+2. `npm run lint` → still only the same 7 pre-existing, unrelated `reminder-worker` errors.
+3. `npm run test` → 5 suites / **28** tests passed (added the unassign case).
+4. `docker compose up --build -d` → healthy.
+5. Live smoke test: `?status=TODO` → `200` with the matching task; `?status=NOT_A_STATUS` → `400 BAD_REQUEST` (`"status must be one of the following values: TODO, IN_PROGRESS, BLOCKED, SNOOZED, DONE"`), confirming invalid enum values are now rejected before reaching Prisma. `?bogus=1` → `400` (`"property bogus should not exist"`), confirming `forbidNonWhitelisted` also covers the new query DTO. `PATCH /tasks/:id/assign {assigneeId: <uuid>}` → `200`, assigned; `{assigneeId: null}` → `200`, unassigned (`assigneeId: null` in the response); `{assigneeId: "not-a-uuid"}` → `400 "assigneeId must be a UUID"`. Test user (`review-fix-test@example.com`) and its workspace deleted afterward.

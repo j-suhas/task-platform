@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '@app/common';
-import { TaskStatus } from '@prisma/client';
 import { TasksService } from '../services/tasks.service';
 import { CreateTaskDto } from '../dto/create-task.dto';
+import { ListTasksQueryDto } from '../dto/list-tasks-query.dto';
 
 @Controller('projects/:projectId/tasks')
 export class ProjectTasksController {
@@ -21,16 +21,9 @@ export class ProjectTasksController {
   findAll(
     @Param('projectId') projectId: string,
     @CurrentUser() user: { id: string },
-    @Query('status') status?: TaskStatus,
-    @Query('assigneeId') assigneeId?: string,
-    @Query('tag') tag?: string,
-    @Query('search') search?: string,
+    @Query() query: ListTasksQueryDto,
   ) {
-    return this.tasksService.findAll(
-      projectId,
-      { status, assigneeId, tag, search },
-      user.id,
-    );
+    return this.tasksService.findAll(projectId, query, user.id);
   }
 
   @Get('board')
