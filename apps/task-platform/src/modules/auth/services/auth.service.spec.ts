@@ -38,7 +38,6 @@ describe('AuthService', () => {
       createRefreshToken: jest.fn(),
       findRefreshToken: jest.fn(),
       deleteRefreshToken: jest.fn(),
-      deleteAllUserRefreshTokens: jest.fn(),
       upsertFcmToken: jest.fn(),
       deleteFcmToken: jest.fn(),
     } as unknown as jest.Mocked<AuthRepository>;
@@ -151,7 +150,7 @@ describe('AuthService', () => {
         id: 'rt-1',
         token: 'hashed',
         userId: 'user-1',
-        expiresAt: new Date(),
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60),
         createdAt: new Date(),
       });
       repository.findUserById.mockResolvedValue(makeUser());
@@ -190,6 +189,25 @@ describe('AuthService', () => {
         UnauthorizedException,
       );
       expect(repository.deleteRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException when the stored token has expired', async () => {
+      jwtService.verifyAsync.mockResolvedValue({ sub: 'user-1' });
+      repository.findRefreshToken.mockResolvedValue({
+        id: 'rt-1',
+        token: 'hashed',
+        userId: 'user-1',
+        expiresAt: new Date(Date.now() - 1000),
+        createdAt: new Date(),
+      });
+
+      await expect(service.refresh('expired-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(repository.deleteRefreshToken).toHaveBeenCalledWith(
+        expect.any(String),
+      );
+      expect(repository.findUserById).not.toHaveBeenCalled();
     });
   });
 

@@ -44,10 +44,6 @@ export class AuthRepository {
     });
   }
 
-  async deleteAllUserRefreshTokens(userId: string): Promise<void> {
-    await this.prisma.refreshToken.deleteMany({ where: { userId } });
-  }
-
   async upsertFcmToken(
     userId: string,
     deviceId: string,

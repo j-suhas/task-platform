@@ -17,9 +17,11 @@ import { AuthService } from '../services/auth.service';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { FcmTokenDto } from '../dto/fcm-token.dto';
+import { TokenResponseDto } from '../dto/token-response.dto';
+import { RefreshResponseDto } from '../dto/refresh-response.dto';
+import { REFRESH_TOKEN_TTL_MS } from '../auth.constants';
 
 const REFRESH_TOKEN_COOKIE = 'refresh_token';
-const REFRESH_TOKEN_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 @Controller('auth')
 export class AuthController {
@@ -33,7 +35,7 @@ export class AuthController {
       httpOnly: true,
       secure: this.appConfigService.nodeEnv === 'production',
       sameSite: 'strict',
-      maxAge: REFRESH_TOKEN_COOKIE_MAX_AGE_MS,
+      maxAge: REFRESH_TOKEN_TTL_MS,
     };
   }
 
@@ -55,7 +57,7 @@ export class AuthController {
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<TokenResponseDto> {
     const { accessToken, refreshToken } = await this.authService.login(dto);
     res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, this.refreshCookieOptions());
     return { accessToken };
@@ -67,7 +69,7 @@ export class AuthController {
   async refresh(
     @Req() req: RequestWithCorrelation,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<RefreshResponseDto> {
     const refreshToken = this.readRefreshCookie(req);
     if (!refreshToken) {
       throw new UnauthorizedException('Missing refresh token');

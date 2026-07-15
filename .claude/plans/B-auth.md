@@ -80,10 +80,19 @@ auth.module.ts
 5. Added a scoped ESLint override (`files: ['**/*.spec.ts']`, `@typescript-eslint/unbound-method: 'off'`) — `expect(mock.method).toHaveBeenCalledWith(...)` is a well-known typescript-eslint false positive against Jest mocks of typed class methods (no `eslint-plugin-jest` in this repo to auto-remap the rule). Documented in `eslint.config.mjs` with a one-line comment.
 6. After `npm install`ing the new packages, `docker compose up --build -d` alone left the container's anonymous `node_modules` volume stale (same issue as the shared-libs phase) — required `--renew-anon-volumes`. Named volumes (`postgres-data`, `redis-data`) were untouched, confirmed by seed data surviving.
 
+## Round 2 — code review fixes
+
+A code review of the initial implementation raised four points, all addressed:
+
+1. **Unused response DTOs** — `TokenResponseDto`/`RefreshResponseDto` existed but controller methods returned untyped object literals. `AuthController.login`/`refresh` now carry explicit `Promise<TokenResponseDto>`/`Promise<RefreshResponseDto>` return type annotations. (These stayed distinct from the service layer's internal `AuthTokenPair` interface — the DTOs describe the HTTP response body, `{ accessToken }` only, while the service still needs to return both `accessToken` and `refreshToken` internally so the controller can set the cookie.)
+2. **Duplicated TTL constants** — `REFRESH_TOKEN_TTL_MS` (used for both the DB `expiresAt` / JWT `expiresIn` in the service and the cookie `maxAge` in the controller) was hard-coded in two places. Extracted `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL`, `REFRESH_TOKEN_TTL_MS`, `BCRYPT_ROUNDS` into a new `apps/task-platform/src/modules/auth/auth.constants.ts`, imported by both `auth.service.ts` and `auth.controller.ts`.
+3. **Unenforced DB-side refresh token expiry (security)** — `refresh()` verified the JWT's own expiry but never checked `RefreshToken.expiresAt` from the DB, making the stored TTL decorative. Added an explicit check (`stored.expiresAt.getTime() <= Date.now()` → `UnauthorizedException`) after the old token row is deleted (so an expired-but-presented token is still consumed/rotated-out either way, closing a reuse window). Added a corresponding unit test (`throws UnauthorizedException when the stored token has expired`) and updated the existing happy-path test's mock `expiresAt` from `new Date()` (already effectively "now", which would've started failing under the new check) to one hour in the future.
+4. **Unused `deleteAllUserRefreshTokens` repository method** — nothing in the service or controllers called it, and no "logout everywhere" endpoint was in scope for this phase. Removed from `auth.repository.ts` and its mock in `auth.service.spec.ts` rather than keeping speculative persistence code around; can be re-added if a future phase adds that flow.
+
 ## Verification results (actual)
 
 1. `npm run lint` → 0 errors on auth-related files; only the 7 pre-existing, unrelated errors in `apps/reminder-worker/test/app.e2e-spec.ts` remain (same file flagged as pre-existing in the shared-libs phase).
-2. `npm run test` → 3 suites / 11 tests passed.
+2. `npm run test` → 3 suites / 11 tests passed (round 1).
 3. `npm run build` → clean after the `import type` fix.
 4. `docker compose up --build -d --renew-anon-volumes` → `taskplatform-api` healthy.
 5. `POST /auth/register` → `201`, body has no `passwordHash`. Duplicate email → `409 CONFLICT`.
@@ -97,3 +106,11 @@ auth.module.ts
 13. Extra: `POST /auth/register` with an unknown field (`isAdmin`) → `400 "property isAdmin should not exist"`, confirming `whitelist`/`forbidNonWhitelisted` is active.
 
 Test user created during verification (`planner-test@example.com`) was deleted from the DB afterward (cascades to its refresh tokens / FCM tokens).
+
+### Round 2 re-verification (after review fixes)
+
+1. `npm run lint` → still clean (only the same 7 pre-existing, unrelated errors).
+2. `npm run test` → 3 suites / **12** tests passed (added the expired-DB-token case).
+3. `npm run build` → clean.
+4. `docker compose up --build -d` → `taskplatform-api` healthy (no new deps this round, no `--renew-anon-volumes` needed).
+5. Live smoke test: register → login → refresh → `200`, new `accessToken`, cookie `Max-Age=2592000` (30d, unchanged — confirms the constants refactor didn't alter the actual TTL value). Test user (`review-fix-test@example.com`) deleted afterward.

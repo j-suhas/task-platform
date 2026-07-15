@@ -12,13 +12,19 @@ import * as bcrypt from 'bcryptjs';
 import { AuthRepository } from '../repositories/auth.repository';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
-
-const ACCESS_TOKEN_TTL = '15m';
-const REFRESH_TOKEN_TTL = '30d';
-const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const BCRYPT_ROUNDS = 10;
+import {
+  ACCESS_TOKEN_TTL,
+  BCRYPT_ROUNDS,
+  REFRESH_TOKEN_TTL,
+  REFRESH_TOKEN_TTL_MS,
+} from '../auth.constants';
 
 type SanitizedUser = Omit<User, 'passwordHash'>;
+
+interface AuthTokenPair {
+  accessToken: string;
+  refreshToken: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -44,9 +50,7 @@ export class AuthService {
     return this.sanitize(user);
   }
 
-  async login(
-    dto: LoginDto,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  async login(dto: LoginDto): Promise<AuthTokenPair> {
     const user = await this.authRepository.findUserByEmail(dto.email);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -82,9 +86,7 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  async refresh(
-    refreshToken: string,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  async refresh(refreshToken: string): Promise<AuthTokenPair> {
     let payload: { sub: string };
     try {
       payload = await this.jwtService.verifyAsync<{ sub: string }>(
@@ -104,6 +106,10 @@ export class AuthService {
     // TODO: concurrent refresh requests for the same token aren't mutex-protected.
     // A Redis-based lock keyed on the token hash is the intended post-MVP hardening.
     await this.authRepository.deleteRefreshToken(tokenHash);
+
+    if (stored.expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException('Refresh token has expired');
+    }
 
     const user = await this.authRepository.findUserById(payload.sub);
     if (!user) {
