@@ -9,9 +9,20 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { UsersModule } from './modules/users/users.module';
+import { WorkspacesModule } from './modules/workspaces/workspaces.module';
+import { ProjectsModule } from './modules/projects/projects.module';
+import { TasksModule } from './modules/tasks/tasks.module';
 
 @Module({
-  imports: [CommonModule, AuthModule],
+  imports: [
+    CommonModule,
+    AuthModule,
+    UsersModule,
+    WorkspacesModule,
+    ProjectsModule,
+    TasksModule,
+  ],
   controllers: [AppController],
   providers: [
     AppService,
